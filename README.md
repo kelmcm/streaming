@@ -27,3 +27,7 @@ vehicle {
   occupancy_status: STANDING_ROOM_ONLY
 }...
 ```
+
+The static data model looks like...
+
+![gtfs-erd.png](images/gtfs-erd.png)
