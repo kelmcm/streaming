@@ -83,3 +83,7 @@ class VehiclePosition:
             "timestamps_ahead_of_header": int(ahead),
         }
         return results
+
+    def get_key_value(self, vp):
+        return vp.set_index('entity_id')[VEHICLE_DTYPES.keys()].to_dict()
+

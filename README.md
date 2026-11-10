@@ -12,3 +12,26 @@ The static data model looks like...
 ![gtfs-erd.png](images/gtfs-erd.png)
 
 This codebase used best practices from https://www.transit-data.com/.
+
+## Prerequiste
+
+- Download and create kafka topic:
+    ```bash
+    docker run -d --name kafka -p 9092:9092 apache/kafka:latest
+    kafka-topics --create --topic vehicle-positions --bootstrap-server localhost:9092
+    ```
+  
+## Run 
+
+- Start Kafka server on Docker
+    ```bash
+    docker run -d --name kafka -p 9092:9092 apache/kafka:latest
+    ```
+- Run poller
+    ```bash
+    uv run poller.py
+    ```
+- View Kafka messages
+  ```bash
+   kafka-console-consumer --topic vehicle-positions --from-beginning --bootstrap-server localhost:9092 --property print.key=true --property print.timestamp=true 
+  ```

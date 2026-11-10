@@ -1,10 +1,13 @@
 from gtfs_realtime.config import API_VEHICLE_POSITIONS
-from gtfs_realtime.parsers.vehicle_positions import VehiclePosition
+from gtfs_realtime.parsers.vehicle_positions import VehiclePosition, VEHICLE_DTYPES
 
 import time
 import logging
 from dataclasses import dataclass
 from typing import Callable, Optional
+from confluent_kafka import Producer
+import pandas as pd
+import json
 
 import requests
 from google.transit import gtfs_realtime_pb2
@@ -108,7 +111,43 @@ def run_poller(
 def process_vehicle_positions(feed: gtfs_realtime_pb2.FeedMessage) -> None:
     """Placeholder: hand the decoded FeedMessage to your parser."""
     vp = VehiclePosition()
-    vp.parse_to_dataframe(feed)
+    vp_df = vp.parse_to_dataframe(feed)
+    send_message(vp_df)
+    return vp_df
+
+def send_message(vp_df: pd.DataFrame):
+    """Sends a message to Kafka"""
+    config = {
+        'bootstrap.servers': 'localhost:9092', # User-specific properties that you must set
+        'acks': 'all' # Fixed properties
+    }
+
+    # Create Producer instance
+    producer = Producer(config)
+
+    # Optional per-message delivery callback (triggered by poll() or flush())
+    # when a message has been successfully delivered or permanently
+    # failed delivery (after retries).
+    def delivery_callback(err, msg):
+        if err:
+            print('ERROR: Message failed delivery: {}'.format(err))
+        else:
+            print("Produced event to topic {topic}: key = {key:12} value = {value:12}".format(
+                topic=msg.topic(), key=msg.key().decode('utf-8'), value=msg.value().decode('utf-8')))
+
+    # Produce data by selecting random values from these lists.
+    topic = "vehicle-positions"
+
+    count = 0
+    for record in vp_df.to_dict(orient="records"):
+        producer.produce(topic=topic, value=json.dumps(record).encode("utf-8"), key=record['entity_id'], callback=delivery_callback)
+        count += 1
+
+        # Trigger any outstanding delivery report callbacks.
+        producer.poll(0)
+
+    # Block until the messages are delivered.
+    producer.flush()
 
 
 if __name__ == "__main__":
