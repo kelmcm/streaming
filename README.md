@@ -27,13 +27,26 @@ This codebase used best practices from https://www.transit-data.com/.
 
 - Start Kafka server on Docker
     ```bash
-    docker run -d --name kafka -p 9092:9092 apache/kafka:latest
+    docker kafka start
     ```
 - Run poller
     ```bash
     uv run poller.py
     ```
-- View Kafka messages
+- View Kafka topic messages
   ```bash
-   kafka-console-consumer --topic vehicle-positions --from-beginning --bootstrap-server localhost:9092 --property print.key=true --property print.timestamp=true 
+  kafka-console-consumer --topic vehicle-positions --from-beginning --bootstrap-server localhost:9092 --property print.key=true --property print.timestamp=true 
+  ```
+- Start websocket consumer
+  ```bash
+  uv run src/gtfs_realtime/consumer.py
+  ```
+- Run web page that connects to websocket
+  ```bash
+  uv run python -m http.server 3000 --directory display 
+  ```
+  Then open `http://localhost:3000` in browser
+- Stop Kafka server on Docker
+  ```bash
+  docker kafka start
   ```
