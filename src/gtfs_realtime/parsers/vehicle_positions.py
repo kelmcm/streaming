@@ -1,3 +1,5 @@
+from gtfs_realtime.producer import producer, send_message
+
 from google.transit import gtfs_realtime_pb2
 import logging
 import pandas as pd
@@ -18,6 +20,9 @@ VEHICLE_DTYPES = {
 }
 
 class VehiclePosition:
+    """
+    Class to hold a received VehiclePositions Feed from a GTFS Real-time API.
+    """
 
     def _opt(self, container, field):
         """Return a field value only if the protobuf message actually set it."""
@@ -84,6 +89,11 @@ class VehiclePosition:
         }
         return results
 
-    def get_key_value(self, vp):
-        return vp.set_index('entity_id')[VEHICLE_DTYPES.keys()].to_dict()
+
+def process(feed: gtfs_realtime_pb2.FeedMessage) -> None:
+    vp = VehiclePosition()
+    vp_df = vp.parse_to_dataframe(feed)
+    send_message(producer, "vehicle-positions", vp_df)
+    return vp_df
+
 

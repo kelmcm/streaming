@@ -52,3 +52,9 @@ This codebase used best practices from https://www.transit-data.com/.
   ```bash
   docker kafka start
   ```
+
+## Data Attribution & Terms of Use
+
+Transit data is provided by the [Société de transport de Montréal (STM)](https://www.stm.info/en/about/developers) under the [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) licence. This is an unofficial project and is not affiliated with or endorsed by the STM.
+
+- [ ] **TODO:** Add the STM attribution and unofficial-site disclaimer footer to the website (`display/index.html`) before publishing publicly.
