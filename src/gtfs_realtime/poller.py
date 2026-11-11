@@ -1,4 +1,4 @@
-from gtfs_realtime.config import API_VEHICLE_POSITIONS
+from gtfs_realtime.config import API_VEHICLE_POSITIONS, API_KEY
 from gtfs_realtime.parsers.vehicle_positions import VehiclePosition
 from gtfs_realtime.producer import producer, send_message
 
@@ -13,10 +13,11 @@ from google.protobuf.message import DecodeError
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-
 @dataclass
 class PollState:
-    """Validators and dedup cursor carried across poll iterations."""
+    """
+    Validators and dedup cursor carried across poll iterations.
+    """
     etag: Optional[str] = None
     last_modified: Optional[str] = None
     last_header_ts: int = 0
@@ -41,7 +42,7 @@ def poll_once(
 
     headers.update({
         'accept': 'application/x-protobuf',
-        'apiKey': "l7847ecf8f41dc4800a5c94cf684c0b37f" # Environment variables
+        'apiKey': API_KEY # Environment variables
     })
 
     response = session.get(url, headers=headers, timeout=15.0)
@@ -90,7 +91,9 @@ def run_poller(
     process_snapshot: Callable[[gtfs_realtime_pb2.FeedMessage], None],
     max_backoff: float = 300.0,
 ) -> None:
-    """Poll forever with conditional requests and exponential error backoff."""
+    """
+    Poll forever with conditional requests and exponential error backoff.
+    """
     session = requests.Session()
     session.headers["User-Agent"] = "transit-data-poller/1.0"
     state = PollState()
