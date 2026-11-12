@@ -1,4 +1,4 @@
-from gtfs_realtime.producer import producer, send_message
+from gtfs_realtime.producer import MessageProducer
 
 from google.transit import gtfs_realtime_pb2
 import logging
@@ -14,9 +14,30 @@ VEHICLE_DTYPES = {
     "longitude": "float64",
     "bearing": "float64",
     "speed": "float64",
+    "stop_id": "Int64",
+    "current_stop_sequence": "Int64",
     "current_status": "Int64",
     "occupancy_status": "Int64",
+    "congestion_level": "Int64",
     "timestamp": "Int64",
+}
+VEHICLE_POSITIONS_TOPIC = "vehicle-positions"
+
+ENUM_CURRENT_STATUS = {
+    0: "INCOMING_AT",
+    1: "STOPPED_AT",
+    2: "IN_TRANSIT_TO"
+}
+
+ENUM_OCCUPANCY_STATUS = {
+    0: "EMPTY",
+    1: "MANY_SEATS_AVAILABLE",
+    2: "FEW_SEATS_AVAILABLE",
+    3: "STANDING_ROOM_ONLY",
+    4: "CRUSHED_STANDING_ROOM_ONLY",
+    5: "FULL",
+    6: "NOT_ACCEPTING_PASSENGERS",
+    7: "NO_DATA_AVAILABLE",
 }
 
 class VehiclePosition:
@@ -43,12 +64,15 @@ class VehiclePosition:
                     "trip_id": self._opt(vp.trip, "trip_id"),
                     "route_id": self._opt(vp.trip, "route_id"),
                     "direction_id": self._opt(vp.trip, "direction_id"),
-                    "latitude": pos.latitude if vp.HasField("position") else None,
-                    "longitude": pos.longitude if vp.HasField("position") else None,
+                    "latitude": self._opt(pos, "latitude"),
+                    "longitude": self._opt(pos, "longitude"),
                     "bearing": self._opt(pos, "bearing"),
                     "speed": self._opt(pos, "speed"),
+                    "stop_id": self._opt(vp, "stop_id"),
+                    "current_stop_sequence": self._opt(vp, "current_stop_sequence"),
                     "current_status": self._opt(vp, "current_status"),
                     "occupancy_status": self._opt(vp, "occupancy_status"),
+                    "congestion_level": self._opt(vp, "congestion_level"),
                     "timestamp": self._opt(vp, "timestamp"),
                 }
             )
@@ -56,6 +80,10 @@ class VehiclePosition:
         vehicle_positions = pd.DataFrame.from_records(
             records, columns=list(VEHICLE_DTYPES.keys())
         ).astype(VEHICLE_DTYPES)
+
+        # Clean enums
+        vehicle_positions['current_status'] = vehicle_positions["current_status"].map(ENUM_CURRENT_STATUS)
+        vehicle_positions['occupancy_status'] = vehicle_positions["occupancy_status"].map(ENUM_OCCUPANCY_STATUS)
 
         if validate:
             report = self.validate(vehicle_positions, feed.header.timestamp)
@@ -93,7 +121,10 @@ class VehiclePosition:
 def process(feed: gtfs_realtime_pb2.FeedMessage) -> None:
     vp = VehiclePosition()
     vp_df = vp.parse_to_dataframe(feed)
-    send_message(producer, "vehicle-positions", vp_df)
+
+    producer = MessageProducer(bootstrap_servers='localhost:9092')
+    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, df=vp_df)
+
     return vp_df
 
 

@@ -1,10 +1,11 @@
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from confluent_kafka import Consumer
 import websockets
 
 app = FastAPI()
 
+# TODO: Convert to Server Sent Events
 @app.websocket("/ws/vehicle_positions")
 async def vehicle_stream(websocket: WebSocket):
     config = {

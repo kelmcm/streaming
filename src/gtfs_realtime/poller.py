@@ -29,6 +29,8 @@ def poll_once(
     response = session.get(url, headers=headers, timeout=15.0)
     response.raise_for_status()
 
+    # TODO: Revisit response headers (ETag / If-Modified-Since)
+
     # Decode and apply the content-level dedup guard
     feed = gtfs_realtime_pb2.FeedMessage()
     try:

@@ -1,34 +1,44 @@
 from confluent_kafka import Producer
-import pandas as pd
 import json
+import logging
+import pandas as pd
 
-config = {
-    'bootstrap.servers': 'localhost:9092', # User-specific properties that you must set
-    'acks': 'all' # Fixed properties
-}
-producer = Producer(config)
+logger = logging.getLogger(__name__)
 
-def send_message(producer, topic, df: pd.DataFrame):
-    """Sends a message to Kafka"""
-    count = 0
-    records = json.loads(df.to_json(orient="records"))
-    for record in records:
-        producer.produce(topic=topic, value=json.dumps(record).encode("utf-8"), key=record['entity_id'], callback=delivery_callback)
-        count += 1
+class MessageProducer:
+    """
+    Generic message producer class that sends messages to a Kafka topic.
+    Currently, receives the messages in a Dataframe, converts the dataframe to JSON and sends to Kafka.
+    """
 
-        # Trigger any outstanding delivery report callbacks.
-        producer.poll(0)
+    def __init__(self, bootstrap_servers: str = 'localhost:9092', extra_config: dict = None):
+        config = {
+            'bootstrap.servers': bootstrap_servers,
+            'acks': 'all',
+            **(extra_config or {}),
+        }
+        self.producer = Producer(config)
 
-    # Block until the messages are delivered.
-    producer.flush()
+    def send_dataframe(self, topic, df: pd.DataFrame):
+        """Converts dataframe to JSON and sends a message to Kafka topic"""
+        count = 0
+        records = json.loads(df.to_json(orient="records"))
+        for record in records:
+            self.producer.produce(topic=topic, value=json.dumps(record).encode("utf-8"), key=record['entity_id'], callback=_delivery_callback)
+            count += 1
 
+            # Trigger any outstanding delivery report callbacks.
+            self.producer.poll(0)
 
-def delivery_callback(err, msg):
-    # Optional per-message delivery callback (triggered by poll() or flush())
-    # when a message has been successfully delivered or permanently
-    # failed delivery (after retries).
+        # Block until the messages are delivered.
+        self.producer.flush()
+
+@staticmethod
+def _delivery_callback(err, msg):
+    # Per-message delivery callback (triggered by poll() or flush()) when a message has been
+    # successfully delivered or permanently failed delivery (after retries).
     if err:
-        print('ERROR: Message failed delivery: {}'.format(err))
+        logger.error('ERROR: Message failed delivery: {}'.format(err))
     else:
-        print("Produced event to topic {topic}: key = {key:12} value = {value:12}".format(
+        logger.info("Produced event to topic {topic}: key = {key:12} value = {value:12}".format(
             topic=msg.topic(), key=msg.key().decode('utf-8'), value=msg.value().decode('utf-8')))

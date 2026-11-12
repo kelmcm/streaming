@@ -33,7 +33,7 @@ This codebase used best practices from https://www.transit-data.com/.
     ```
 - Run poller
     ```bash
-    uv run poller.py
+    uv run src/gtfs_realtime/poller.py
     ```
 - View Kafka topic messages
   ```bash
