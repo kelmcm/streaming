@@ -2,6 +2,7 @@ from gtfs_realtime.producer import MessageProducer
 
 from google.transit import gtfs_realtime_pb2
 import logging
+import os
 import pandas as pd
 
 VEHICLE_DTYPES = {
@@ -15,7 +16,7 @@ VEHICLE_DTYPES = {
     "longitude": "float64",
     "bearing": "float64",
     "speed": "float64",
-    "stop_id": "Int64",
+    "stop_id": "string",
     "current_stop_sequence": "Int64",
     "current_status": "Int64",
     "occupancy_status": "Int64",
@@ -123,8 +124,9 @@ def process(agency_id: str, feed: gtfs_realtime_pb2.FeedMessage) -> None:
     vp = VehiclePosition()
     vp_df = vp.parse_to_dataframe(agency_id, feed)
 
-    producer = MessageProducer(bootstrap_servers='localhost:9092')
-    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, key_cols=['agency_id', 'entity_id'], df=vp_df)
+    bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    producer = MessageProducer(bootstrap_servers=bootstrap_servers)
+    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, key_cols=['agency_id', 'vehicle_id'], df=vp_df)
 
     return vp_df
 

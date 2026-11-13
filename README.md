@@ -19,36 +19,27 @@ This codebase used best practices from https://www.transit-data.com/.
 
 ## Prerequiste
 
-- Download and create kafka topic:
-    ```bash
-    docker run -d --name kafka -p 9092:9092 apache/kafka:latest
-    kafka-topics --create --topic vehicle-positions --bootstrap-server localhost:9092
-    ```
+- Install Docker
+- Get any API Keys and set in `src/config.py`
   
 ## Run 
 
-- Start Kafka server and UI on Docker
-    ```bash
-    docker compose up
-    ```
-- Run poller
-    ```bash
-    uv run src/gtfs_realtime/poller.py
-    ```
-- View Kafka topic messages
+In the root directory...
+
+- Start Kafka, GTFS-Realtime producer for STM, and SSE consumer.
   ```bash
-  kafka-console-consumer --topic vehicle-positions --from-beginning --bootstrap-server localhost:9092 --property print.key=true --property print.timestamp=true 
+  docker compose up
   ```
-- Start server-sent events consumer
+  If you need to rebuild the docker containers: 
   ```bash
-  uv run fastapi dev src/gtfs_realtime/consumer.py
+  docker compose up --build
   ```
-- Run web page that connects to websocket
+- View the web app
   ```bash
-  uv run python -m http.server 3000 --directory display 
+  uv run python -m http.server 3000 --directory src/display 
   ```
-  Then open `http://localhost:3000` in browser
-- Stop Kafka server on Docker
+  Access in browser at `http://localhost:3000`.
+- Stop all Docker containers
   ```bash
   docker compose down
   ```
@@ -57,4 +48,4 @@ This codebase used best practices from https://www.transit-data.com/.
 
 Transit data is provided by the [Société de transport de Montréal (STM)](https://www.stm.info/en/about/developers) under the [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) licence. This is an unofficial project and is not affiliated with or endorsed by the STM.
 
-- [ ] **TODO:** Add the STM attribution and unofficial-site disclaimer footer to the website (`display/index.html`) before publishing publicly.
+- [ ] **TODO:** Add the STM attribution and unofficial-site disclaimer footer to the website (`src/display/index.html`) before publishing publicly.

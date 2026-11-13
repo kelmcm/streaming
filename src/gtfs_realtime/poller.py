@@ -1,6 +1,3 @@
-from gtfs_realtime.config import APIS
-from gtfs_realtime.parsers.vehicle_positions import process as process_vehicle_positions
-
 import time
 import logging
 from typing import Callable
@@ -85,8 +82,3 @@ class Poller:
                 backoff = min(max(backoff * 2, 5.0), max_backoff)
                 logging.warning("Transport error (%s) — backing off %.0f s", exc, backoff)
                 time.sleep(backoff)
-
-
-if __name__ == "__main__":
-    poller_stm = Poller(agency_id="STM", url=APIS["STM"]['vehicle_positions'], process_func=process_vehicle_positions, api_key=APIS["STM"]['key'])
-    poller_stm.poll()

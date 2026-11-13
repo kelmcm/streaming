@@ -20,6 +20,11 @@ services:
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   kafka-ui:
     container_name: kafka-ui
@@ -33,6 +38,33 @@ services:
       SWAGGER_UI_ENABLED: "true"
     depends_on:
       - kafka
+
+  poller:
+    build: .
+    container_name: gtfs-poller
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    command: uv run python scripts/poll_stm_vehicle_positions.py
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  consumer:
+    build: .
+    container_name: gtfs-consumer
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - ./src:/app/src
+    command: uv run fastapi dev src/gtfs_realtime/consumer.py --host 0.0.0.0 --port 8000
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   kafka_data:

@@ -1,4 +1,6 @@
 import asyncio
+import os
+import uuid
 from confluent_kafka import Consumer
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +21,10 @@ app.add_middleware(
 @app.get("/stream/vehicle_positions", response_class=EventSourceResponse)
 async def stream_vehicle_positions():
     config = {
-        'bootstrap.servers': 'localhost:9092', # Port the Kafka topic is hosted on
-        'group.id':          'gtfs-vehicle-positions',
-        'auto.offset.reset': 'earliest'
+        'bootstrap.servers':  os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
+        'group.id':           f'gtfs-vehicle-positions-{uuid.uuid4()}',
+        'auto.offset.reset':  'latest',
+        'enable.auto.commit': False,
     }
 
     consumer = Consumer(config)
