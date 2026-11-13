@@ -1,18 +1,25 @@
 import asyncio
-from fastapi import FastAPI, WebSocket
 from confluent_kafka import Consumer
-import websockets
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.sse import EventSourceResponse, ServerSentEvent
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# TODO: Convert to Server Sent Events
-@app.websocket("/ws/vehicle_positions")
-async def vehicle_stream(websocket: WebSocket):
-    config = {
-        # User-specific properties that you must set
-        'bootstrap.servers': 'localhost:9092', # port the kafka topic is hosted on
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
-        # Fixed properties
+@app.get("/stream/vehicle_positions", response_class=EventSourceResponse)
+async def stream_vehicle_positions():
+    config = {
+        'bootstrap.servers': 'localhost:9092', # Port the Kafka topic is hosted on
         'group.id':          'gtfs-vehicle-positions',
         'auto.offset.reset': 'earliest'
     }
@@ -26,33 +33,19 @@ async def vehicle_stream(websocket: WebSocket):
             msg = await asyncio.to_thread(consumer.poll, 0.5)
 
             if msg is None:
-                # Initial message consumption may take up to
-                # `session.timeout.ms` for the consumer group to
-                # rebalance and start consuming
-                print("Waiting...")
+                # Initial message consumption may take up to `session.timeout.ms` for the consumer group to rebalance and start consuming
+                logger.info("Waiting...")
             elif msg.error():
-                print("ERROR: %s".format(msg.error()))
+                logger.error("ERROR: %s".format(msg.error()))
                 continue
             else:
                 # Extract the (optional) key and value, and print.
-                print("Consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
+                logger.info("Consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
                     topic=msg.topic(),
                     key=msg.key().decode('utf-8'),
                     value=msg.value().decode('utf-8'))
                 )
 
-                # Forward the JSON message from Kafka directly over the WebSocket
-                await websocket.send(msg.value().decode("utf-8"))
-    except  websockets.ConnectionClosed:
-        print("Client disconnected")
-        pass
+                yield ServerSentEvent(raw_data=msg.value().decode("utf-8"))
     finally:
         consumer.close()
-
-async def main():
-    async with websockets.serve(vehicle_stream, "localhost", 8000):
-        print("WebSocket server running at ws://localhost:8000")
-        await asyncio.Future()  # run forever
-
-if __name__ == "__main__":
-    asyncio.run(main())

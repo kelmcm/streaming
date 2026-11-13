@@ -27,9 +27,9 @@ This codebase used best practices from https://www.transit-data.com/.
   
 ## Run 
 
-- Start Kafka server on Docker
+- Start Kafka server and UI on Docker
     ```bash
-    docker kafka start
+    docker compose up
     ```
 - Run poller
     ```bash
@@ -39,9 +39,9 @@ This codebase used best practices from https://www.transit-data.com/.
   ```bash
   kafka-console-consumer --topic vehicle-positions --from-beginning --bootstrap-server localhost:9092 --property print.key=true --property print.timestamp=true 
   ```
-- Start websocket consumer
+- Start server-sent events consumer
   ```bash
-  uv run src/gtfs_realtime/consumer.py
+  uv run fastapi dev src/gtfs_realtime/consumer.py
   ```
 - Run web page that connects to websocket
   ```bash
@@ -50,7 +50,7 @@ This codebase used best practices from https://www.transit-data.com/.
   Then open `http://localhost:3000` in browser
 - Stop Kafka server on Docker
   ```bash
-  docker kafka start
+  docker compose down
   ```
 
 ## Data Attribution & Terms of Use

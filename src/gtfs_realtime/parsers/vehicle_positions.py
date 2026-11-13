@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 
 VEHICLE_DTYPES = {
+    "agency_id": "string",
     "entity_id": "string",
     "vehicle_id": "string",
     "trip_id": "string",
@@ -49,7 +50,7 @@ class VehiclePosition:
         """Return a field value only if the protobuf message actually set it."""
         return getattr(container, field) if container.HasField(field) else None
 
-    def parse_to_dataframe(self, feed: gtfs_realtime_pb2.FeedMessage, validate: bool = True) -> pd.DataFrame:
+    def parse_to_dataframe(self, agency_id: str, feed: gtfs_realtime_pb2.FeedMessage, validate: bool = True) -> pd.DataFrame:
         """Flatten VehiclePosition entities into a typed positions DataFrame."""
         records = []
         for entity in feed.entity:
@@ -59,6 +60,7 @@ class VehiclePosition:
             pos = vp.position
             records.append(
                 {
+                    "agency_id": agency_id,
                     "entity_id": entity.id,
                     "vehicle_id": vp.vehicle.id or None,
                     "trip_id": self._opt(vp.trip, "trip_id"),
@@ -89,7 +91,6 @@ class VehiclePosition:
             report = self.validate(vehicle_positions, feed.header.timestamp)
             logging.info("Validation report: %s", report)
 
-        print(vehicle_positions.head().to_string(index=False))
         logging.info("Built positions frame with %d rows", len(vehicle_positions))
         return vehicle_positions
 
@@ -118,12 +119,12 @@ class VehiclePosition:
         return results
 
 
-def process(feed: gtfs_realtime_pb2.FeedMessage) -> None:
+def process(agency_id: str, feed: gtfs_realtime_pb2.FeedMessage) -> None:
     vp = VehiclePosition()
-    vp_df = vp.parse_to_dataframe(feed)
+    vp_df = vp.parse_to_dataframe(agency_id, feed)
 
     producer = MessageProducer(bootstrap_servers='localhost:9092')
-    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, df=vp_df)
+    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, key_cols=['agency_id', 'entity_id'], df=vp_df)
 
     return vp_df
 

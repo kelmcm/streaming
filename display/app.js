@@ -20,9 +20,9 @@ const map = new maplibregl.Map({
   antialias: true,
 });
 
-const ws = new WebSocket("ws://localhost:8000");
+const vehiclePositionsSource = new EventSource('http://localhost:8000/stream/vehicle_positions');
 
-ws.onmessage = (event) => {
+vehiclePositionsSource.onmessage = (event) => {
   const vehicle = JSON.parse(event.data);
   vehicles.set(vehicle.entity_id, vehicle); // overwrites previous position for this bus
 
@@ -36,7 +36,7 @@ ws.onmessage = (event) => {
         .setLngLat([vehicle.longitude, vehicle.latitude])
         .setPopup(
           new maplibregl.Popup().setText(
-            `Route ${vehicle.route_id} | Vehicle ${vehicle.vehicle_id}`
+            `Route ${vehicle.route_id} | Direction: ${vehicle.direction_id} | Time: ${new Date(vehicle.timestamp * 1000)}`
           )
         )
         .addTo(map);
@@ -54,3 +54,9 @@ ws.onmessage = (event) => {
       )
       .join("\n");
 };
+
+vehiclePositionsSource.onerror = (err) => {
+  console.error("EventSource failed:", err);
+};
+
+// vehiclePositionsSource.close()

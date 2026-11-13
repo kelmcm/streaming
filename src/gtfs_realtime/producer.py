@@ -19,12 +19,13 @@ class MessageProducer:
         }
         self.producer = Producer(config)
 
-    def send_dataframe(self, topic, df: pd.DataFrame):
+    def send_dataframe(self, topic: str, key_cols: list[str], df: pd.DataFrame):
         """Converts dataframe to JSON and sends a message to Kafka topic"""
         count = 0
         records = json.loads(df.to_json(orient="records"))
         for record in records:
-            self.producer.produce(topic=topic, value=json.dumps(record).encode("utf-8"), key=record['entity_id'], callback=_delivery_callback)
+            key = ":".join(str(record[col]) for col in key_cols)
+            self.producer.produce(topic=topic, value=json.dumps(record).encode("utf-8"), key=key, callback=_delivery_callback)
             count += 1
 
             # Trigger any outstanding delivery report callbacks.
