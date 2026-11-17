@@ -2,6 +2,8 @@
 -- Every table includes `agency_id` as a foreign key to `agency(agency_id) ON DELETE CASCADE`
 -- and uses composite primary/foreign keys scoped by `agency_id`.
 
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE TABLE IF NOT EXISTS agency (
     agency_id TEXT PRIMARY KEY,
     agency_name TEXT NOT NULL,
@@ -89,6 +91,15 @@ CREATE TABLE IF NOT EXISTS shapes (
     shape_pt_sequence INTEGER NOT NULL,
     route_pattern_id TEXT,
     PRIMARY KEY (agency_id, shape_id, shape_pt_sequence)
+);
+
+-- Stores connected shape points into a line for a particular shape_id
+CREATE TABLE IF NOT EXISTS shape_geoms (
+    agency_id TEXT NOT NULL REFERENCES agency(agency_id) ON DELETE CASCADE,
+    shape_id TEXT NOT NULL,
+    geom geometry(LineString, 4326) NOT NULL,
+    length_m DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (agency_id, shape_id)
 );
 
 CREATE TABLE IF NOT EXISTS stops (

@@ -43,6 +43,10 @@ In the root directory...
   ```bash
   docker compose down
   ```
+- Local postgres database:
+  ```bash
+  psql "$DATABASE_URL"
+  ```
 
 ## Data Attribution & Terms of Use
 

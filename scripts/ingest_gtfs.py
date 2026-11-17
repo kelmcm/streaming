@@ -21,11 +21,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://myuser:mypassword@localhost:5432/transitdb",
-)
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "sql" / "schema.sql"
+DEFAULT_DB_URL = os.environ.get("DATABASE_URL")
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "sql" /"schema.sql"
 
 # Target columns for each table (excluding agency_id, which is prepended automatically)
 TABLE_COLUMNS: dict[str, list[str]] = {
@@ -366,6 +363,30 @@ def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
                 )
                 print(f"  - Constraints verified in {time.perf_counter() - t_idx:.2f}s")
 
+            # 7. Insert connected shape points into shape_geoms
+            cur.execute(
+                """
+                INSERT INTO shape_geoms (agency_id, shape_id, geom, length_m)
+                SELECT
+                    agency_id,
+                    shape_id,
+                    ST_MakeLine(
+                            ST_SetSRID(ST_MakePoint(shape_pt_lon, shape_pt_lat), 4326)
+                                ORDER BY shape_pt_sequence
+                    ) AS geom,
+                    ST_Length(
+                            ST_MakeLine(
+                                    ST_SetSRID(ST_MakePoint(shape_pt_lon, shape_pt_lat), 4326)
+                                        ORDER BY shape_pt_sequence
+                            )::geography
+                    ) AS length_m
+                FROM shapes
+                WHERE agency_id = %s
+                GROUP BY agency_id, shape_id;
+                """,
+                (agency_id,),
+            )
+
         conn.commit()
 
     print(f"Done in {time.perf_counter() - t0:.2f}s!")
@@ -389,9 +410,11 @@ def main() -> None:
     parser.add_argument(
         "--db-url",
         default=DEFAULT_DB_URL,
-        help=f"Postgres connection URL (default: {DEFAULT_DB_URL})",
+        help="Postgres connection URL (defaults to DATABASE_URL from .env)",
     )
     args = parser.parse_args()
+    if not args.db_url:
+        raise RuntimeError("Missing DATABASE_URL environment variable (or pass --db-url).")
     ingest_gtfs(args.path, args.agency_id, args.db_url)
 
 
