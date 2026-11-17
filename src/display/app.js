@@ -1,11 +1,11 @@
 const vehicles = new Map();   // agency_id:entity_id -> latest vehicle JSON
 const positions = new Map();  // agency_id:entity_id -> current displayed [lng, lat]
-const trails = new Map();     // agency_id:entity_id -> { trip_id, coords: [[lng, lat], ...] }
 const animations = new Map(); // agency_id:entity_id -> { path, cumDist, totalDist, startTime, durationMs }
 
 let mapLoaded = false;
-let trailUpdateScheduled = false;
 let hoveredKey = null;
+
+const API_BASE = "http://localhost:8000";
 
 const state = {
   lng: -73.5673, // Montréal
@@ -38,23 +38,25 @@ function formatPopupText(vehicle) {
 }
 
 map.on("load", () => {
-  map.addSource("vehicle-trails", {
+  // Static GTFS route shapes (MapLibre fetches the GeoJSON URL itself)
+  map.addSource("static-routes", {
     type: "geojson",
-    data: { type: "FeatureCollection", features: [] },
+    data: `${API_BASE}/static/routes`,
   });
 
   map.addLayer({
-    id: "vehicle-trails-layer",
+    id: "static-routes-layer",
     type: "line",
-    source: "vehicle-trails",
+    source: "static-routes",
     layout: {
       "line-join": "round",
       "line-cap": "round",
     },
     paint: {
-      "line-color": "#78b7da",
-      "line-width": 2,
-      "line-opacity": 0.65,
+      "line-color": ["get", "route_color"],
+      // Metro (route_type 1) slightly thicker than bus
+      "line-width": ["case", ["==", ["get", "route_type"], 1], 3, 1.5],
+      "line-opacity": 0.6,
     },
   });
 
@@ -106,33 +108,7 @@ map.on("load", () => {
   });
 
   mapLoaded = true;
-  scheduleTrailUpdate();
 });
-
-function scheduleTrailUpdate() {
-  if (!mapLoaded || trailUpdateScheduled) return;
-  trailUpdateScheduled = true;
-  requestAnimationFrame(() => {
-    trailUpdateScheduled = false;
-    const features = [];
-    for (const [key, trail] of trails.entries()) {
-      if (trail.coords.length >= 2) {
-        features.push({
-          type: "Feature",
-          properties: { key },
-          geometry: {
-            type: "LineString",
-            coordinates: trail.coords,
-          },
-        });
-      }
-    }
-    map.getSource("vehicle-trails").setData({
-      type: "FeatureCollection",
-      features,
-    });
-  });
-}
 
 function buildAnimation(path, durationMs = 25000) {
   const cumDist = [0];
@@ -193,7 +169,7 @@ function animateVehicles(now) {
 }
 requestAnimationFrame(animateVehicles);
 
-const vehiclePositionsSource = new EventSource("http://localhost:8000/stream/vehicle_positions");
+const vehiclePositionsSource = new EventSource(`${API_BASE}/stream/vehicle_positions`);
 
 vehiclePositionsSource.onmessage = (event) => {
   const vehicle = JSON.parse(event.data);
@@ -202,18 +178,6 @@ vehiclePositionsSource.onmessage = (event) => {
   vehicles.set(key, vehicle);
 
   if (vehicle.latitude != null && vehicle.longitude != null) {
-    // Append raw GPS coordinate to this vehicle's trail (reset if it started a new trip)
-    let trail = trails.get(key);
-    if (!trail || trail.trip_id !== vehicle.trip_id) {
-      trail = { trip_id: vehicle.trip_id, coords: [] };
-      trails.set(key, trail);
-    }
-    const lastCoord = trail.coords[trail.coords.length - 1];
-    if (!lastCoord || lastCoord[0] !== vehicle.longitude || lastCoord[1] !== vehicle.latitude) {
-      trail.coords.push([vehicle.longitude, vehicle.latitude]);
-      scheduleTrailUpdate();
-    }
-
     const durationMs = (vehicle.horizon_sec ?? 25) * 1000;
     const hasPredictedPath = Array.isArray(vehicle.predicted_path) && vehicle.predicted_path.length >= 2;
 

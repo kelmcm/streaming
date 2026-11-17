@@ -8,6 +8,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 import logging
 
 import json
+from gtfs_realtime.static_routes import router as static_router
 from gtfs_realtime.vehicle_predictor import VehiclePredictor
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+app.include_router(static_router)
 
 predictor = VehiclePredictor()
 
@@ -55,21 +58,5 @@ async def stream_vehicle_positions():
                 for record in enriched:
                     yield ServerSentEvent(raw_data=json.dumps(record))
 
-
-                    # if msg is None:
-            #     # Initial message consumption may take up to `session.timeout.ms` for the consumer group to rebalance and start consuming
-            #     logger.info("Waiting...")
-            # elif msg.error():
-            #     logger.error("ERROR: %s".format(msg.error()))
-            #     continue
-            # else:
-            #     # Extract the (optional) key and value, and print.
-            #     logger.info("Consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
-            #         topic=msg.topic(),
-            #         key=msg.key().decode('utf-8'),
-            #         value=msg.value().decode('utf-8'))
-            #     )
-            #
-            #     yield ServerSentEvent(raw_data=msg.value().decode("utf-8"))
     finally:
         consumer.close()
