@@ -13,7 +13,9 @@ dependencies = [
     "gtfs-realtime-bindings==3.0.0",
     "numpy==2.5.4",
     "pandas==3.1.1",
+    "partridge>=1.1.2",
     "protobuf==7.36.2",
+    "psycopg[binary]>=3.3.9",
     "python-dotenv==1.2.4",
     "requests==2.34.2",
 ]
