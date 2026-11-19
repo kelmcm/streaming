@@ -1,15 +1,14 @@
 """
 Repeatable multi-agency GTFS static ingestion pipeline using Partridge, Pandas, and Postgres COPY.
 
-Usage:
-    uv run python scripts/ingest_gtfs.py --path data/GTFS_STM --agency-id STM
+Run through the CLI:
+    uv run transit-ingest-static --path data/GTFS_STM --agency-id STM
 """
 
 from __future__ import annotations
 
-import argparse
 import io
-import os
+import logging
 import time
 import zipfile
 from pathlib import Path
@@ -17,12 +16,11 @@ from pathlib import Path
 import pandas as pd
 import partridge as ptg
 import psycopg
-from dotenv import load_dotenv
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-DEFAULT_DB_URL = os.environ.get("DATABASE_URL")
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "sql" /"schema.sql"
+# Relative to the working directory: the repo root locally, /app in the Docker image.
+DEFAULT_SCHEMA_PATH = Path("db/init/001_schema.sql")
 
 # Target columns for each table (excluding agency_id, which is prepended automatically)
 TABLE_COLUMNS: dict[str, list[str]] = {
@@ -253,7 +251,7 @@ def copy_stop_times_streaming(
 
     def open_stop_times():
         if gtfs_path.is_dir():
-            return open(gtfs_path / "stop_times.txt", "r", encoding="utf-8-sig")
+            return open(gtfs_path / "stop_times.txt", encoding="utf-8-sig")
         zf = zipfile.ZipFile(gtfs_path)
         return io.TextIOWrapper(zf.open("stop_times.txt"), encoding="utf-8-sig")
 
@@ -281,8 +279,14 @@ def copy_stop_times_streaming(
     return total_rows
 
 
-def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
+def ingest_gtfs(
+    gtfs_path: Path,
+    agency_id: str | None,
+    conninfo: str,
+    schema_path: Path = DEFAULT_SCHEMA_PATH,
+) -> None:
     t0 = time.perf_counter()
+    schema_sql = schema_path.read_text(encoding="utf-8")  # fail before the slow feed load
     config = build_partridge_config()
     feed = ptg.load_feed(str(gtfs_path), config=config)
 
@@ -295,12 +299,12 @@ def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
                 "Feed agency.txt does not specify an agency_id; pass --agency-id explicitly."
             )
 
-    print(f"Ingesting GTFS feed from '{gtfs_path}' for agency_id='{agency_id}'...")
+    logger.info("Ingesting GTFS feed from '%s' for agency_id='%s'...", gtfs_path, agency_id)
 
-    with psycopg.connect(db_url) as conn:
+    with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
             # 1. Ensure schema exists
-            cur.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+            cur.execute(schema_sql)
 
             # 2. Remove existing rows for this agency (cascades cleanly across all child tables)
             cur.execute("DELETE FROM agency WHERE agency_id = %s", (agency_id,))
@@ -327,13 +331,13 @@ def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
                 t_table = time.perf_counter()
                 df = feed.get(f"{table_name}.txt")
                 if df is None or df.empty:
-                    print(f"  - {table_name:<16} skipped (not present or empty)")
+                    logger.info(f"  - {table_name:<16} skipped (not present or empty)")
                     continue
 
                 norm_df = normalize_dataframe(df, agency_id, cols)
                 count = copy_dataframe(cur, table_name, norm_df)
                 elapsed = time.perf_counter() - t_table
-                print(f"  - {table_name:<16} loaded {count:>10,} rows ({elapsed:.2f}s)")
+                logger.info(f"  - {table_name:<16} loaded {count:>10,} rows ({elapsed:.2f}s)")
 
             # 5. Stream stop_times.txt validated against Partridge's pruned trips & stops
             t_st = time.perf_counter()
@@ -347,21 +351,23 @@ def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
                 valid_stop_ids,
             )
             st_elapsed = time.perf_counter() - t_st
-            print(f"  - {'stop_times':<16} loaded {st_count:>10,} rows ({st_elapsed:.2f}s)")
+            logger.info(f"  - {'stop_times':<16} loaded {st_count:>10,} rows ({st_elapsed:.2f}s)")
 
             if not stop_times_has_other_agencies:
                 t_idx = time.perf_counter()
-                print("  - Building primary & foreign key constraints on stop_times...")
+                logger.info("  - Building primary & foreign key constraints on stop_times...")
                 cur.execute(
                     """
                     ALTER TABLE stop_times
                         ADD PRIMARY KEY (agency_id, trip_id, stop_sequence),
                         ADD FOREIGN KEY (agency_id) REFERENCES agency(agency_id) ON DELETE CASCADE,
-                        ADD FOREIGN KEY (agency_id, trip_id) REFERENCES trips(agency_id, trip_id) ON DELETE CASCADE,
-                        ADD FOREIGN KEY (agency_id, stop_id) REFERENCES stops(agency_id, stop_id) ON DELETE CASCADE;
+                        ADD FOREIGN KEY (agency_id, trip_id) REFERENCES trips(agency_id, trip_id)
+                            ON DELETE CASCADE,
+                        ADD FOREIGN KEY (agency_id, stop_id) REFERENCES stops(agency_id, stop_id)
+                            ON DELETE CASCADE;
                     """
                 )
-                print(f"  - Constraints verified in {time.perf_counter() - t_idx:.2f}s")
+                logger.info(f"  - Constraints verified in {time.perf_counter() - t_idx:.2f}s")
 
             # 7. Insert connected shape points into shape_geoms
             cur.execute(
@@ -389,34 +395,4 @@ def ingest_gtfs(gtfs_path: Path, agency_id: str | None, db_url: str) -> None:
 
         conn.commit()
 
-    print(f"Done in {time.perf_counter() - t0:.2f}s!")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Ingest a GTFS static feed (directory or .zip) into Postgres with agency_id."
-    )
-    parser.add_argument(
-        "--path",
-        required=True,
-        type=Path,
-        help="Path to the GTFS directory or .zip archive (e.g., data/GTFS_STM)",
-    )
-    parser.add_argument(
-        "--agency-id",
-        default=None,
-        help="Override agency_id (defaults to agency_id from agency.txt)",
-    )
-    parser.add_argument(
-        "--db-url",
-        default=DEFAULT_DB_URL,
-        help="Postgres connection URL (defaults to DATABASE_URL from .env)",
-    )
-    args = parser.parse_args()
-    if not args.db_url:
-        raise RuntimeError("Missing DATABASE_URL environment variable (or pass --db-url).")
-    ingest_gtfs(args.path, args.agency_id, args.db_url)
-
-
-if __name__ == "__main__":
-    main()
+    logger.info("Done in %.2fs!", time.perf_counter() - t0)
