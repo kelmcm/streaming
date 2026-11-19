@@ -21,7 +21,7 @@ services:
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
     healthcheck:
-      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" ]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -39,47 +39,64 @@ services:
     depends_on:
       - kafka
 
+  postgres:
+    container_name: postgres
+    image: postgis/postgis:17-3.5-alpine
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   poller:
     build: .
     container_name: gtfs-poller
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    command: uv run transit-poller --agency STM
+    command: ["transit-poller", "--agency", "STM"]
     depends_on:
       kafka:
         condition: service_healthy
     restart: unless-stopped
 
-  consumer:
+  api:
     build: .
-    container_name: gtfs-consumer
+    container_name: gtfs-api
     ports:
       - "8000:8000"
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       POSTGRES_HOST: postgres
-    volumes:
-      - ./src:/app/src
-    command: uv run fastapi dev src/gtfs_realtime/consumer.py --host 0.0.0.0 --port 8000
+    command: ["uvicorn", "transit.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
-  postgres:
-    image: postgis/postgis:17-3.5-alpine
-    platform: linux/amd64
-    restart: unless-stopped
+  ingest:
+    build: .
+    profiles: ["tools"]
+    env_file: .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+      POSTGRES_HOST: postgres
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./data:/app/data:ro
+    entrypoint: ["transit-ingest-static"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   kafka_data:
