@@ -21,8 +21,8 @@ dependencies = [
 ]
 
 [project.scripts]
-transit-poller = "transit.realtime.cli:main"
-transit-ingest-static = "transit.static_gtfs.cli:main"
+transit-poller = "transit.gtfs_realtime.cli:main"
+transit-ingest-static = "transit.gtfs_static.cli:main"
 
 [dependency-groups]
 dev = [

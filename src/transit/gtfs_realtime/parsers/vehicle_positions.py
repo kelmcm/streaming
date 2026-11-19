@@ -9,7 +9,7 @@ from google.transit import gtfs_realtime_pb2
 from transit.infra import topics
 
 if TYPE_CHECKING:
-    from transit.realtime.publisher import Publisher
+    from transit.gtfs_realtime.publisher import Publisher
 
 logger = logging.getLogger(__name__)
 

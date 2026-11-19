@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from transit.gtfs_static.loader import DEFAULT_SCHEMA_PATH, ingest_gtfs
 from transit.log import configure_logging
 from transit.settings import get_postgres_settings
-from transit.static_gtfs.loader import DEFAULT_SCHEMA_PATH, ingest_gtfs
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

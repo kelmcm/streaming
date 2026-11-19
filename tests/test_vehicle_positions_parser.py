@@ -2,8 +2,8 @@
 
 from google.transit import gtfs_realtime_pb2
 
+from transit.gtfs_realtime.parsers import vehicle_positions
 from transit.infra import topics
-from transit.realtime.parsers import vehicle_positions
 
 
 def _feed() -> gtfs_realtime_pb2.FeedMessage:

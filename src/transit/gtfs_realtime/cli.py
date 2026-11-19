@@ -8,11 +8,11 @@ import signal
 import sys
 from functools import partial
 
+from transit.gtfs_realtime.feeds import FEEDS
+from transit.gtfs_realtime.parsers import vehicle_positions
+from transit.gtfs_realtime.poller import Poller
+from transit.gtfs_realtime.publisher import Publisher
 from transit.log import configure_logging
-from transit.realtime.feeds import FEEDS
-from transit.realtime.parsers import vehicle_positions
-from transit.realtime.poller import Poller
-from transit.realtime.publisher import Publisher
 
 logger = logging.getLogger(__name__)
 
