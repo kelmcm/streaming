@@ -1,4 +1,4 @@
-from gtfs_realtime.utils.db import get_connection
+from transit.infra.db import get_connection
 
 
 class VehiclePredictor:
@@ -32,8 +32,9 @@ class VehiclePredictor:
             v.vehicle_id,
             t.shape_id,
             sg.length_m,
-            ST_LineLocatePoint(sg.geom, ST_SetSRID(ST_MakePoint(v.lon, v.lat), 4326)) AS frac -- Fraction of route completed
-        FROM UNNEST(%s::text[], %s::text[], %s::text[], %s::float8[], %s::float8[]) AS v(agency_id, vehicle_id, trip_id, lon, lat)
+            ST_LineLocatePoint(sg.geom, ST_SetSRID(ST_MakePoint(v.lon, v.lat), 4326)) AS frac
+        FROM UNNEST(%s::text[], %s::text[], %s::text[], %s::float8[], %s::float8[])
+            AS v(agency_id, vehicle_id, trip_id, lon, lat)
             INNER JOIN trips t ON t.agency_id = v.agency_id AND t.trip_id = v.trip_id
             INNER JOIN shape_geoms sg ON sg.agency_id = t.agency_id AND sg.shape_id = t.shape_id; \
         """

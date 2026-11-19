@@ -5,7 +5,7 @@ const animations = new Map(); // agency_id:entity_id -> { path, cumDist, totalDi
 let mapLoaded = false;
 let hoveredKey = null;
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "/api";
 
 const state = {
   lng: -73.5673, // Montréal
