@@ -1,9 +1,17 @@
-from gtfs_realtime.producer import MessageProducer
+from __future__ import annotations
 
-from google.transit import gtfs_realtime_pb2
 import logging
-import os
+from typing import TYPE_CHECKING
+
 import pandas as pd
+from google.transit import gtfs_realtime_pb2
+
+from transit.infra import topics
+
+if TYPE_CHECKING:
+    from transit.realtime.publisher import Publisher
+
+logger = logging.getLogger(__name__)
 
 VEHICLE_DTYPES = {
     "agency_id": "string",
@@ -23,13 +31,8 @@ VEHICLE_DTYPES = {
     "congestion_level": "Int64",
     "timestamp": "Int64",
 }
-VEHICLE_POSITIONS_TOPIC = "vehicle-positions"
 
-ENUM_CURRENT_STATUS = {
-    0: "INCOMING_AT",
-    1: "STOPPED_AT",
-    2: "IN_TRANSIT_TO"
-}
+ENUM_CURRENT_STATUS = {0: "INCOMING_AT", 1: "STOPPED_AT", 2: "IN_TRANSIT_TO"}
 
 ENUM_OCCUPANCY_STATUS = {
     0: "EMPTY",
@@ -42,6 +45,7 @@ ENUM_OCCUPANCY_STATUS = {
     7: "NO_DATA_AVAILABLE",
 }
 
+
 class VehiclePosition:
     """
     Class to hold a received VehiclePositions Feed from a GTFS Real-time API.
@@ -51,7 +55,9 @@ class VehiclePosition:
         """Return a field value only if the protobuf message actually set it."""
         return getattr(container, field) if container.HasField(field) else None
 
-    def parse_to_dataframe(self, agency_id: str, feed: gtfs_realtime_pb2.FeedMessage, validate: bool = True) -> pd.DataFrame:
+    def parse_to_dataframe(
+        self, agency_id: str, feed: gtfs_realtime_pb2.FeedMessage, validate: bool = True
+    ) -> pd.DataFrame:
         """Flatten VehiclePosition entities into a typed positions DataFrame."""
         records = []
         for entity in feed.entity:
@@ -80,19 +86,21 @@ class VehiclePosition:
                 }
             )
 
-        vehicle_positions = pd.DataFrame.from_records(
-            records, columns=list(VEHICLE_DTYPES.keys())
-        ).astype(VEHICLE_DTYPES)
+        vehicle_positions = pd.DataFrame.from_records(records, columns=list(VEHICLE_DTYPES.keys())).astype(
+            VEHICLE_DTYPES
+        )
 
         # Clean enums
-        vehicle_positions['current_status'] = vehicle_positions["current_status"].map(ENUM_CURRENT_STATUS)
-        vehicle_positions['occupancy_status'] = vehicle_positions["occupancy_status"].map(ENUM_OCCUPANCY_STATUS)
+        vehicle_positions["current_status"] = vehicle_positions["current_status"].map(ENUM_CURRENT_STATUS)
+        vehicle_positions["occupancy_status"] = vehicle_positions["occupancy_status"].map(
+            ENUM_OCCUPANCY_STATUS
+        )
 
         if validate:
             report = self.validate(vehicle_positions, feed.header.timestamp)
-            logging.info("Validation report: %s", report)
+            logger.info("Validation report: %s", report)
 
-        logging.info("Built positions frame with %d rows", len(vehicle_positions))
+        logger.info("Built positions frame with %d rows", len(vehicle_positions))
         return vehicle_positions
 
     def validate(self, vehicle_positions: pd.DataFrame, header_ts: int) -> dict:
@@ -120,14 +128,9 @@ class VehiclePosition:
         return results
 
 
-def process(agency_id: str, feed: gtfs_realtime_pb2.FeedMessage) -> None:
+def process(agency_id: str, feed: gtfs_realtime_pb2.FeedMessage, *, publisher: Publisher) -> pd.DataFrame:
+    """Parse a VehiclePositions feed and publish each vehicle to Kafka using a shared publisher."""
     vp = VehiclePosition()
     vp_df = vp.parse_to_dataframe(agency_id, feed)
-
-    bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
-    producer = MessageProducer(bootstrap_servers=bootstrap_servers)
-    producer.send_dataframe(topic=VEHICLE_POSITIONS_TOPIC, key_cols=['agency_id', 'vehicle_id'], df=vp_df)
-
+    publisher.send_dataframe(topic=topics.VEHICLE_POSITIONS, key_cols=["agency_id", "vehicle_id"], df=vp_df)
     return vp_df
-
-

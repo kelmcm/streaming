@@ -45,7 +45,7 @@ services:
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    command: uv run python scripts/poll_stm_vehicle_positions.py
+    command: uv run transit-poller --agency STM
     depends_on:
       kafka:
         condition: service_healthy
