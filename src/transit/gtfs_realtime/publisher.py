@@ -29,14 +29,14 @@ class Publisher:
         self.producer = make_producer(extra_config)
 
     def send_dataframe(self, topic: str, key_cols: list[str], df: pd.DataFrame) -> int:
-        """Send each row of `df` as a JSON message keyed by `key_cols`. Returns rows sent."""
+        """Send each row of dataframe as a JSON message to Kafka."""
         records = json.loads(df.to_json(orient="records"))
         for record in records:
             key = ":".join(str(record[col]) for col in key_cols)
             self.producer.produce(
                 topic=topic,
-                value=json.dumps(record).encode("utf-8"),
                 key=key,
+                value=json.dumps(record).encode("utf-8"),
                 callback=_delivery_callback,
             )
             # Serve outstanding delivery report callbacks.

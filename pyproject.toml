@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Streaming GTFS transit data pipeline (Kafka, PostGIS, FastAPI/SSE)"
 readme = "README.md"
 authors = [
-    { name = "Kelly McManus", email = "kmcmanus1939@comcast.net" }
+    { name = "Kelly McManus" }
 ]
 requires-python = ">=3.13"
 dependencies = [

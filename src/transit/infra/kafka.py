@@ -1,11 +1,9 @@
 """Kafka client factories that read connection settings from `transit.settings`."""
 
 from __future__ import annotations
-
 from typing import Any
 
 from confluent_kafka import Consumer, Producer
-
 from transit.settings import get_kafka_settings
 
 
