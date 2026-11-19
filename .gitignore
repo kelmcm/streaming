@@ -4,3 +4,6 @@
 data/
 .DS_Store
 __pycache__/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/

@@ -1,8 +1,10 @@
 from functools import lru_cache
-from fastapi import APIRouter
-from gtfs_realtime.utils.db import get_connection
 
-router = APIRouter(prefix="/static", tags=["static"])
+from fastapi import APIRouter
+
+from transit.infra.db import get_connection
+
+router = APIRouter(prefix="/api/static", tags=["static"])
 
 
 def _format_hex_color(color: str | None, default: str) -> str:

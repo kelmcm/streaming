@@ -1,10 +1,10 @@
 [project]
-name = "streaming"
+name = "transit"
 version = "0.1.0"
-description = "Learning streaming data pipelines"
+description = "Streaming GTFS transit data pipeline (Kafka, PostGIS, FastAPI/SSE)"
 readme = "README.md"
 authors = [
-    { name = "Kelly McManus", email = "kmcmanus1939@comcast.net" }
+    { name = "Kelly McManus" }
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -15,9 +15,20 @@ dependencies = [
     "pandas==3.1.1",
     "partridge>=1.1.2",
     "protobuf==7.36.2",
-    "psycopg[binary]>=3.3.9",
+    "psycopg[binary,pool]>=3.3.9",
     "python-dotenv==1.2.4",
     "requests==2.34.2",
+]
+
+[project.scripts]
+transit-poller = "transit.gtfs_realtime.cli:main"
+transit-ingest-static = "transit.gtfs_static.cli:main"
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest>=8",
+    "ruff>=0.8",
 ]
 
 [build-system]
@@ -25,4 +36,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gtfs_realtime", "src/config.py"]
+packages = ["src/transit"]
+
+[tool.ruff]
+line-length = 110
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

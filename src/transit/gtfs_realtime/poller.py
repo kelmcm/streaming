@@ -1,21 +1,25 @@
-import time
 import logging
-from typing import Callable
+import time
+from collections.abc import Callable
 
 import requests
-from google.transit import gtfs_realtime_pb2
 from google.protobuf.message import DecodeError
+from google.transit import gtfs_realtime_pb2
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+ProcessFunc = Callable[[str, gtfs_realtime_pb2.FeedMessage], object]
+
 
 class Poller:
 
-    def __init__(self,
-            agency_id: str,
-            url: str,
-            process_func: Callable[[gtfs_realtime_pb2.FeedMessage], None],
-            api_key: str = None,
-        ):
+    def __init__(
+        self,
+        agency_id: str,
+        url: str,
+        process_func: ProcessFunc,
+        api_key: str | None = None,
+    ):
         self.agency_id = agency_id
         self.url = url
         self.process_func = process_func
@@ -43,22 +47,21 @@ class Poller:
         try:
             feed.ParseFromString(response.content)
         except DecodeError:
-            logging.error("Body was not valid protobuf — treating as transient, will retry")
+            logger.error("Body was not valid protobuf — treating as transient, will retry")
             return last_header_ts
 
         header_ts = feed.header.timestamp
         if header_ts <= last_header_ts:
-            logging.info(
+            logger.info(
                 "Header timestamp %d not newer than last %d — dropping duplicate",
                 header_ts,
                 last_header_ts,
             )
             return last_header_ts
 
-        logging.info("New snapshot: header_ts=%d, entities=%d", header_ts, len(feed.entity))
+        logger.info("New snapshot: header_ts=%d, entities=%d", header_ts, len(feed.entity))
         self.process_func(self.agency_id, feed)
         return header_ts
-
 
     def poll(
         self,
@@ -80,5 +83,5 @@ class Poller:
                 time.sleep(poll_interval)
             except requests.RequestException as exc:
                 backoff = min(max(backoff * 2, 5.0), max_backoff)
-                logging.warning("Transport error (%s) — backing off %.0f s", exc, backoff)
+                logger.warning("Transport error (%s) — backing off %.0f s", exc, backoff)
                 time.sleep(backoff)
